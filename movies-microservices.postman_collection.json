@@ -1,16 +1,17 @@
 {
 	"info": {
 		"_postman_id": "bbccb08c-1889-40ee-88df-70d81e280945",
-		"name": "Películas y Reseñas - Smithy Microservicios",
-		"description": "Colección para probar los dos microservicios REST (Catálogo de Películas y Reseñas de Películas) que se comunican mediante el SDK autogenerado de Smithy.",
+		"name": "Películas y Reseñas - Arquitectura Híbrida REST & gRPC",
+		"description": "Colección para probar la arquitectura híbrida de microservicios. El Catálogo (Servicio A) es un servidor gRPC (puerto 50051) y el de Reseñas (Servicio B) es una API REST (puerto 3002) que actúa como cliente gRPC síncrono.",
 		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
 	},
 	"item": [
 		{
-			"name": "Servicio A: Catálogo de Películas (Puerto 3001)",
+			"name": "Servicio A: Catálogo de Películas (gRPC - Puerto 50051)",
+			"description": "El Catálogo de Películas se ha migrado a un servidor gRPC puro. Los endpoints HTTP REST en el puerto 3001 ya no están activos. \n\n### CÓMO PROBAR CON POSTMAN gRPC:\n1. Haz clic en el botón **New** (Nuevo) en Postman y selecciona **gRPC Request**.\n2. Ingresa `localhost:50051` como la URL del servidor.\n3. En la pestaña **Service definition**, selecciona **Import a .proto file** y selecciona el archivo `movie-catalog-service/proto/movie-catalog.proto` de tu disco.\n4. Selecciona el método que deseas probar (ej. `ListMovies`, `GetMovie`, `CreateMovie`, etc.) y haz clic en **Invoke**.",
 			"item": [
 				{
-					"name": "Listar Películas",
+					"name": "[DEPRECATED] Listar Películas",
 					"request": {
 						"method": "GET",
 						"header": [],
@@ -23,12 +24,12 @@
 								"movies"
 							]
 						},
-						"description": "Obtiene el listado resumido de todas las películas sembradas en SQLite (movies.db)."
+						"description": "DEPRECADO: El servicio ya no expone REST. Usa la interfaz gRPC de Postman en localhost:50051."
 					},
 					"response": []
 				},
 				{
-					"name": "Obtener Película por ID (Inception)",
+					"name": "[DEPRECATED] Obtener Película por ID (Inception)",
 					"request": {
 						"method": "GET",
 						"header": [],
@@ -42,12 +43,12 @@
 								"1"
 							]
 						},
-						"description": "Obtiene los detalles completos de la película con ID '1' (Inception)."
+						"description": "DEPRECADO: El servicio ya no expone REST. Usa la interfaz gRPC de Postman en localhost:50051."
 					},
 					"response": []
 				},
 				{
-					"name": "Obtener Película Inexistente (Error 404)",
+					"name": "[DEPRECATED] Obtener Película Inexistente (Error 404)",
 					"request": {
 						"method": "GET",
 						"header": [],
@@ -61,12 +62,12 @@
 								"inexistente-123"
 							]
 						},
-						"description": "Verifica que el catálogo responda con un error 404 (NotFoundException) ante un ID inexistente."
+						"description": "DEPRECADO: El servicio ya no expone REST. Usa la interfaz gRPC de Postman en localhost:50051."
 					},
 					"response": []
 				},
 				{
-					"name": "Crear Nueva Película",
+					"name": "[DEPRECATED] Crear Nueva Película",
 					"request": {
 						"method": "POST",
 						"header": [
@@ -89,62 +90,15 @@
 								"movies"
 							]
 						},
-						"description": "Crea una nueva película en el catálogo SQLite."
-					},
-					"response": []
-				},
-				{
-					"name": "Actualizar Película (Inception)",
-					"request": {
-						"method": "PUT",
-						"header": [
-							{
-								"key": "Content-Type",
-								"value": "application/json",
-								"type": "text"
-							}
-						],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n  \"title\": \"Inception (Director's Cut)\",\n  \"genre\": \"Sci-Fi / Thriller\",\n  \"director\": \"Christopher Nolan\",\n  \"releaseYear\": 2010,\n  \"synopsis\": \"Extended mind-bending masterpiece.\"\n}"
-						},
-						"url": {
-							"raw": "{{catalog_url}}/movies/1",
-							"host": [
-								"{{catalog_url}}"
-							],
-							"path": [
-								"movies",
-								"1"
-							]
-						},
-						"description": "Actualiza la película con ID '1' en el catálogo."
-					},
-					"response": []
-				},
-				{
-					"name": "Eliminar Película por ID",
-					"request": {
-						"method": "DELETE",
-						"header": [],
-						"url": {
-							"raw": "{{catalog_url}}/movies/3",
-							"host": [
-								"{{catalog_url}}"
-							],
-							"path": [
-								"movies",
-								"3"
-							]
-						},
-						"description": "Elimina la película con ID '3' (Interstellar)."
+						"description": "DEPRECADO: El servicio ya no expone REST. Usa la interfaz gRPC de Postman en localhost:50051."
 					},
 					"response": []
 				}
 			]
 		},
 		{
-			"name": "Servicio B: Reseñas y Comunicación Inter-Servicios (Puerto 3002)",
+			"name": "Servicio B: Reseñas y API REST Frontend (Puerto 3002)",
+			"description": "Microservicio de Reseñas que actúa como API REST pública. Se comunica síncronamente con el catálogo (Servicio A) usando un cliente gRPC para la validación y enriquecimiento de películas.",
 			"item": [
 				{
 					"name": "Crear Reseña Película INEXISTENTE (Debe Fallar - 400)",
@@ -159,7 +113,7 @@
 						],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n  \"movieId\": \"inexistente-123\",\n  \"author\": \"Crítico Exigente\",\n  \"rating\": 4,\n  \"comment\": \"Esta reseña no debe poder guardarse porque el catálogo rechazará la validación.\"\n}"
+							"raw": "{\n  \"movieId\": \"inexistente-123\",\n  \"author\": \"Crítico Exigente\",\n  \"rating\": 4,\n  \"comment\": \"Esta reseña no debe poder guardarse porque el catálogo gRPC rechazará la validación.\"\n}"
 						},
 						"url": {
 							"raw": "{{reviews_url}}/reviews",
@@ -170,7 +124,7 @@
 								"reviews"
 							]
 						},
-						"description": "Verifica la validación inter-servicio: el servicio de reseñas consulta al catálogo usando Smithy, detecta que la película no existe y bloquea la creación con un error 400."
+						"description": "Verifica la validación inter-servicio: el servicio de reseñas consulta al catálogo vía cliente gRPC, detecta que la película no existe en el backend y bloquea la creación devolviendo un error HTTP 400 con un MovieNotFoundException."
 					},
 					"response": []
 				},
@@ -198,12 +152,12 @@
 								"reviews"
 							]
 						},
-						"description": "Verifica que al existir el ID '1' en el catálogo, la validación sea exitosa y la reseña se guarde correctamente en reviews.db."
+						"description": "Verifica que al existir el ID '1' en el catálogo gRPC de películas, la validación sea exitosa y la reseña se guarde correctamente en la base de datos local reviews.db."
 					},
 					"response": []
 				},
 				{
-					"name": "Obtener Reseña por ID (Con Enriquecimiento de Catálogo)",
+					"name": "Obtener Reseña por ID (Con Enriquecimiento gRPC)",
 					"request": {
 						"method": "GET",
 						"header": [],
@@ -217,7 +171,7 @@
 								"r1"
 							]
 						},
-						"description": "Demuestra la agregación en caliente: el Servicio B lee la reseña con ID 'r1', consulta al catálogo el título y género de la película mediante el SDK de Smithy, y une los datos en una única respuesta unificada."
+						"description": "Demuestra la agregación en caliente: el Servicio B lee la reseña, consulta síncronamente al catálogo gRPC el título y género de la película mediante gRPC, y une los datos en una única respuesta REST enriquecida."
 					},
 					"response": []
 				},
@@ -237,7 +191,7 @@
 								"1"
 							]
 						},
-						"description": "Obtiene todas las valoraciones asociadas al ID de película '1'."
+						"description": "Obtiene todas las valoraciones locales asociadas al ID de película '1'."
 					},
 					"response": []
 				},
@@ -256,7 +210,7 @@
 								"r3"
 							]
 						},
-						"description": "Elimina la reseña con ID 'r3' de la base de datos de reseñas."
+						"description": "Elimina la reseña con ID 'r3' de la base de datos SQLite local."
 					},
 					"response": []
 				}

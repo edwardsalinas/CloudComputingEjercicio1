@@ -1,0 +1,73 @@
+syntax = "proto3";
+
+package moviecatalog;
+
+// Servicio de Catálogo de Películas
+service MovieCatalogService {
+  rpc GetMovie (GetMovieRequest) returns (GetMovieResponse);
+  rpc ListMovies (ListMoviesRequest) returns (ListMoviesResponse);
+  rpc CreateMovie (CreateMovieRequest) returns (CreateMovieResponse);
+  rpc UpdateMovie (UpdateMovieRequest) returns (UpdateMovieResponse);
+  rpc DeleteMovie (DeleteMovieRequest) returns (DeleteMovieResponse);
+}
+
+// Mensajes de Request
+message GetMovieRequest {
+  string id = 1;
+}
+
+message ListMoviesRequest {
+  // Vacío para listar todas
+}
+
+message CreateMovieRequest {
+  string title = 1;
+  string genre = 2;
+  string director = 3;
+  int32 releaseYear = 4;
+  string synopsis = 5;
+}
+
+message UpdateMovieRequest {
+  string id = 1;
+  string title = 2;
+  string genre = 3;
+  string director = 4;
+  int32 releaseYear = 5;
+  string synopsis = 6;
+}
+
+message DeleteMovieRequest {
+  string id = 1;
+}
+
+// Mensaje de Entidad Película
+message Movie {
+  string id = 1;
+  string title = 2;
+  string genre = 3;
+  string director = 4;
+  int32 releaseYear = 5;
+  string synopsis = 6;
+}
+
+// Mensajes de Response
+message GetMovieResponse {
+  Movie movie = 1;
+}
+
+message ListMoviesResponse {
+  repeated Movie movies = 1;
+}
+
+message CreateMovieResponse {
+  Movie movie = 1;
+}
+
+message UpdateMovieResponse {
+  Movie movie = 1;
+}
+
+message DeleteMovieResponse {
+  bool success = 1;
+}

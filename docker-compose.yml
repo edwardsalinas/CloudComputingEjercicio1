@@ -7,9 +7,9 @@ services:
       dockerfile: movie-catalog-service/Dockerfile
     container_name: movie-catalog-service
     ports:
-      - "3001:3001"
+      - "50051:50051"
     environment:
-      - PORT=3001
+      - GRPC_PORT=50051
     volumes:
       - ./movie-catalog-service/data:/app/data
     networks:
@@ -24,7 +24,7 @@ services:
       - "3002:3002"
     environment:
       - PORT=3002
-      - MOVIE_CATALOG_SERVICE_URL=http://movie-catalog-service:3001
+      - MOVIE_CATALOG_GRPC_HOST=movie-catalog-service:50051
     depends_on:
       - movie-catalog-service
     volumes:

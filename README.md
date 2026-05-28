@@ -1,6 +1,6 @@
-# Ejercicio Grupal: Microservicios REST con Contratos Smithy & Docker
+# Ejercicio Grupal: Arquitectura Híbrida REST & gRPC en Microservicios
 
-Este proyecto implementa una arquitectura descentralizada de dos microservicios en contenedores Docker que se comunican de forma síncrona a través de una API REST. Cada servicio es autónomo y posee su propio contrato de API definido mediante **Smithy 2.0**.
+Este proyecto implementa una arquitectura descentralizada de dos microservicios en contenedores Docker que se comunican de forma síncrona a través de **gRPC** en el backend, manteniendo una **API REST** expuesta públicamente al frontend para los clientes. Cada servicio es autónomo y posee su propia persistencia.
 
 ---
 
@@ -11,77 +11,85 @@ Este proyecto implementa una arquitectura descentralizada de dos microservicios 
                   |        Cliente / Postman          |
                   +-----------------+-----------------+
                                     |
-            +-----------------------+-----------------------+
-            | HTTP (3001)                                   | HTTP (3002)
-            v                                               v
-+-------------------------+                     +-------------------------+
-| Movie Catalog Service   |                     |  Movie Review Service   |
-|      (Servicio A)       |                     |      (Servicio B)       |
-+-----------+-------------+                     +-----------+-------------+
-            |                                               |
-            | SQLite                                        | SQLite
-            v                                               v
-   [  movies.db  ]                                  [  reviews.db  ]
-            ^                                               |
-            |                                               | Smithy Client
-            +----------------- REST (HTTP) -----------------+
-                       (Validación y Enriquecimiento)
+                            HTTP REST (3002)
+                                    |
+                                    v
+                    +-------------------------------+
+                    |   Movie Review Service (M1)   | <---+ [ reviews.db ] (SQLite)
+                    |      REST API (Frontend)      |
+                    +--------------+----------------+
+                                   |
+                           gRPC (50051)
+                                   |
+                                   v
+                    +-------------------------------+
+                    |  Movie Catalog Service (M2)   | <---+ [ movies.db ] (SQLite)
+                    |      gRPC Server (Backend)    |
+                    +-------------------------------+
 ```
 
 ### Características Clave:
-1. **Bases de Datos Autónomas**: Cada servicio utiliza su propio motor **SQLite** persistido e independiente.
-2. **Validación de Integridad**: Al crear una reseña en el *Servicio B*, éste realiza una consulta en tiempo de ejecución al *Servicio A* para asegurar que el ID de la película sea válido.
-3. **Enriquecimiento Dinámico**: Al consultar una reseña en el *Servicio B*, éste solicita en caliente el título y género de la película al *Servicio A* para devolver una respuesta enriquecida al cliente.
-4. **Cliente Estilo Smithy**: El Servicio B consume al Servicio A mediante una librería cliente (`src/smithy-client.js`) que replica de forma exacta el patrón de diseño (Commands & Client) del SDK oficial de AWS generado por Smithy.
+1. **API Pública REST (Servicio M1 - Reseñas)**: Expone endpoints HTTP REST en el puerto `3002` para interactuar con las reseñas.
+2. **Servidor gRPC Privado (Servicio M2 - Catálogo)**: Corre como un backend gRPC puro en el puerto `50051`.
+3. **Comunicación Síncrona Inter-servicio**: Al crear o consultar reseñas, el Servicio M1 actúa como un cliente gRPC y realiza llamadas síncronas de alto rendimiento al servidor gRPC de M2 para validar la existencia de películas y enriquecer la información.
+4. **Bases de Datos Autónomas**: Cada microservicio administra su propio archivo **SQLite** persistente y montado en el host en la carpeta `data/` respectiva.
 
 ---
 
-## 📂 Ubicación de los Contratos Smithy
+## 📂 Contratos y Definiciones Protocol Buffers
 
-Los contratos son propiedad de cada microservicio y describen formalmente el comportamiento de sus APIs:
-* **Contrato del Catálogo**: `movie-catalog-service/contracts/movie-catalog.smithy` -> [Ver Contrato](file:///c:/Users/sterm/OneDrive/Escritorio/Maestria/Maestria/Semana4/ClaseDemo/movie-catalog-service/contracts/movie-catalog.smithy)
-* **Contrato de Reseñas**: `movie-review-service/contracts/movie-review.smithy` -> [Ver Contrato](file:///c:/Users/sterm/OneDrive/Escritorio/Maestria/Maestria/Semana4/ClaseDemo/movie-review-service/contracts/movie-review.smithy)
+El comportamiento y los mensajes de la comunicación gRPC están formalmente descritos en el archivo de definición de Protocol Buffers:
+* **Definición Proto**: `movie-catalog-service/proto/movie-catalog.proto` -> [Ver Contrato Proto](file:///c:/Users/sterm/OneDrive/Escritorio/Maestria/Maestria/Semana4/ClaseDemo/movie-catalog-service/proto/movie-catalog.proto)
+
+Este archivo se encuentra duplicado en el Servicio M1 para permitir la generación y carga dinámica del cliente gRPC:
+* **Copia del Proto en M1**: `movie-review-service/proto/movie-catalog.proto` -> [Ver Proto en Cliente](file:///c:/Users/sterm/OneDrive/Escritorio/Maestria/Maestria/Semana4/ClaseDemo/movie-review-service/proto/movie-catalog.proto)
 
 ---
 
 ## 🚀 Cómo Ejecutar el Proyecto con Docker Compose
 
-Asegúrate de tener Docker instalado y ejecutándose en tu máquina. Luego, abre una terminal en la raíz del proyecto y ejecuta:
+Asegúrate de tener Docker instalado y ejecutándose. Abre una terminal en la raíz del proyecto y ejecuta:
 
 ```bash
-docker compose up --build
+docker compose down
+docker compose up --build -d
 ```
 
-Esto compilará los contenedores de Node.js, inicializará las bases de datos de SQLite con datos semilla e iniciará los servicios en los siguientes puertos locales:
-* **Movie Catalog Service (Servicio A)**: `http://localhost:3001`
-* **Movie Review Service (Servicio B)**: `http://localhost:3002`
+Esto compilará las imágenes de Node.js (usando `node:20-slim`), descargará e instalará las dependencias necesarias de SQLite de forma aislada, y levantará los servicios en los siguientes puertos locales:
+* **Movie Catalog Service (Servicio M2 - Backend gRPC)**: `localhost:50051`
+* **Movie Review Service (Servicio M1 - Frontend REST)**: `http://localhost:3002`
 
 ---
 
 ## 🧪 Métodos de Prueba y Validación
 
-### Método 1: Pruebas con cURL (Línea de Comandos)
+### 1. Pruebas Directas al Backend gRPC (Puerto 50051)
 
-Puedes utilizar los siguientes comandos `curl` para realizar las pruebas CRUD y de integración directamente en tu terminal.
+Puedes interactuar directamente con el servidor gRPC usando herramientas cliente gRPC:
 
-#### 1. Listar Películas en el Catálogo (Servicio A)
-```bash
-curl -X GET http://localhost:3001/movies
-```
+#### A. Con `grpcurl` (Línea de Comandos)
+* **Listar todas las películas en el catálogo**:
+  ```bash
+  grpcurl -plaintext -proto movie-catalog-service/proto/movie-catalog.proto localhost:50051 moviecatalog.MovieCatalogService/ListMovies
+  ```
+* **Obtener una película por ID**:
+  ```bash
+  grpcurl -plaintext -proto movie-catalog-service/proto/movie-catalog.proto -d '{"id": "1"}' localhost:50051 moviecatalog.MovieCatalogService/GetMovie
+  ```
 
-#### 2. Obtener Película por ID (Inception)
-```bash
-curl -X GET http://localhost:3001/movies/1
-```
+#### B. Con Postman
+1. Crea una petición de tipo **gRPC**.
+2. Conéctate a `localhost:50051`.
+3. Importa el archivo proto `movie-catalog-service/proto/movie-catalog.proto`.
+4. Ejecuta cualquiera de los métodos RPC expuestos: `GetMovie`, `ListMovies`, `CreateMovie`, `UpdateMovie`, o `DeleteMovie`.
 
-#### 3. Crear una nueva Película en el Catálogo
-```bash
-curl -X POST http://localhost:3001/movies \
-  -H "Content-Type: application/json" \
-  -d "{\"title\":\"Interstellar 2\",\"genre\":\"Sci-Fi\",\"director\":\"Christopher Nolan\",\"releaseYear\":2026,\"synopsis\":\"Beyond the wormhole.\"}"
-```
+---
 
-#### 4. Crear Reseña de Película INEXISTENTE (Debe Fallar con Error 400 - MovieNotFoundException)
+### 2. Pruebas al Frontend REST (Puerto 3002)
+
+El microservicio de reseñas expone endpoints REST tradicionales que internamente realizan llamadas gRPC hacia el backend.
+
+#### A. Crear Reseña de Película INEXISTENTE (Debe Fallar con Error 400 - MovieNotFoundException)
 ```bash
 curl -X POST http://localhost:3002/reviews \
   -H "Content-Type: application/json" \
@@ -89,49 +97,29 @@ curl -X POST http://localhost:3002/reviews \
 ```
 *Respuesta esperada:* `{"message":"MovieNotFoundException: La película con ID inexistente-id no existe en el catálogo. Reseña rechazada."}`
 
-#### 5. Crear Reseña de Película EXISTENTE (ID 1: Inception)
+#### B. Crear Reseña de Película EXISTENTE (ID 1: Inception)
 ```bash
 curl -X POST http://localhost:3002/reviews \
   -H "Content-Type: application/json" \
   -d "{\"movieId\":\"1\",\"author\":\"Carlos G.\",\"rating\":5,\"comment\":\"La mejor pelicula del siglo XXI.\"}"
 ```
 
-#### 6. Obtener Reseña Enriquecida (Servicio B consulta a Servicio A en tiempo real)
+#### C. Obtener Reseña Enriquecida (El servicio REST llama a gRPC en tiempo real)
 ```bash
 curl -X GET http://localhost:3002/reviews/r1
 ```
-*Respuesta esperada (con datos combinados):*
+*Respuesta esperada (con datos dinámicamente enriquecidos con el título y género traídos desde gRPC):*
 ```json
 {
   "id": "r1",
   "movieId": "1",
   "author": "Alice",
-  "rating": 5,
-  "comment": "Absolute masterpiece! Nolan does it again.",
-  "createdAt": "2026-05-27T...",
-  "movieTitle": "Inception",
-  "movieGenre": "Sci-Fi"
+{{ ... }}
 }
 ```
 
 ---
 
-### Método 2: Pruebas con REST Client (VS Code)
+### 3. Pruebas con REST Client (VS Code)
 
-Si tienes la extensión **REST Client** instalada en VS Code, puedes abrir el archivo [tests.http](file:///c:/Users/sterm/OneDrive/Escritorio/Maestria/Maestria/Semana4/ClaseDemo/tests.http) y hacer clic en `Send Request` sobre cada bloque para probar las llamadas de forma visual e interactiva.
-
----
-
-### Método 3: Prueba del Cliente Smithy Programático (Node.js Local)
-
-Para probar programáticamente cómo funciona el cliente estructurado al estilo Smithy sin usar CURL o Postman:
-
-1. Instala las dependencias en la carpeta del servicio B para tener `axios` instalado localmente:
-   ```bash
-   cd movie-review-service && npm install && cd ..
-   ```
-2. Ejecuta el script de prueba local (asegúrate de que los contenedores docker estén corriendo):
-   ```bash
-   node client-test.js
-   ```
-Este script ejecutará un flujo CRUD completo utilizando únicamente comandos de cliente como `client.send(new GetMovieCommand({ id: '1' }))`, validando la compatibilidad de código con el modelo de Smithy.
+Si tienes la extensión **REST Client** de VS Code, puedes abrir el archivo [tests.http](file:///c:/Users/sterm/OneDrive/Escritorio/Maestria/Maestria/Semana4/ClaseDemo/tests.http) y ejecutar las peticiones HTTP del frontend de forma visual e interactiva.

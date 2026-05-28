@@ -1,45 +1,31 @@
-### ==========================================
-### PRUEBAS DIRECTAS HTTP (MICROSERVICIOS PELICULAS Y RESEÑAS)
-### ==========================================
+### =========================================================================
+### PRUEBAS DE LA ARQUITECTURA HÍBRIDA (REST & gRPC)
+### =========================================================================
 
-@catalogUrl = http://localhost:3001
+# El servicio 'movie-catalog-service' ahora es un servidor gRPC puro que corre en el puerto 50051.
+# El servicio 'movie-review-service' es una API REST pública (puerto 3002) que actúa como cliente gRPC
+# para validar y enriquecer las consultas llamando internamente al catálogo.
+
 @reviewsUrl = http://localhost:3002
 
-### ------------------------------------------
-### MICROSERVICIO A: CATÁLOGO DE PELÍCULAS
-### ------------------------------------------
+### -------------------------------------------------------------------------
+### CÓMO PROBAR EL SERVICIO DE CATÁLOGO (gRPC - Puerto 50051)
+### -------------------------------------------------------------------------
+# Para interactuar directamente con el Catálogo gRPC en el puerto 50051, puedes usar:
+# 1. Postman: Abre una nueva pestaña de tipo "gRPC Request", ingresa "localhost:50051" e importa
+#    el archivo proto: 'movie-catalog-service/proto/movie-catalog.proto'.
+# 2. grpcurl:
+#    - Listar películas:
+#      grpcurl -plaintext -proto movie-catalog-service/proto/movie-catalog.proto localhost:50051 moviecatalog.MovieCatalogService/ListMovies
+#    - Obtener película por ID:
+#      grpcurl -plaintext -proto movie-catalog-service/proto/movie-catalog.proto -d '{"id": "1"}' localhost:50051 moviecatalog.MovieCatalogService/GetMovie
 
-### 1. Listar películas
-GET {{catalogUrl}}/movies
-Accept: application/json
+### -------------------------------------------------------------------------
+### PRUEBAS EN EL MICROSERVICIO DE RESEÑAS (REST API - Puerto 3002)
+### -------------------------------------------------------------------------
 
-### 2. Obtener una película por ID (Inception)
-GET {{catalogUrl}}/movies/1
-Accept: application/json
-
-### 3. Crear una nueva película
-# @name createMovie
-POST {{catalogUrl}}/movies
-Content-Type: application/json
-
-{
-  "title": "Interstellar 2",
-  "genre": "Sci-Fi",
-  "director": "Christopher Nolan",
-  "releaseYear": 2026,
-  "synopsis": "The journey continues beyond the stars."
-}
-
-### 4. Obtener una película inexistente (Verificar 404 - NotFoundException)
-GET {{catalogUrl}}/movies/inexistente-123
-Accept: application/json
-
-
-### ------------------------------------------
-### MICROSERVICIO B: RESEÑAS (COMUNICACIÓN INTER-SERVICIO)
-### ------------------------------------------
-
-### 5. Intentar crear una reseña para una película que NO existe (Debe Fallar con MovieNotFoundException - 400)
+### 1. Intentar crear una reseña para una película que NO existe
+# (Debe fallar con un HTTP 400 - MovieNotFoundException validado vía gRPC)
 POST {{reviewsUrl}}/reviews
 Content-Type: application/json
 
@@ -47,10 +33,10 @@ Content-Type: application/json
   "movieId": "999-inexistente",
   "author": "Lector Crítico",
   "rating": 4,
-  "comment": "Esta reseña no debería poder crearse ya que el ID no existe en el catálogo."
+  "comment": "Esta reseña no debería poder crearse ya que el ID no existe en el catálogo gRPC."
 }
 
-### 6. Crear una reseña para una película que SÍ existe (Película ID 1: Inception)
+### 2. Crear una reseña para una película que SÍ existe (ID "1" - Inception)
 # @name createReview
 POST {{reviewsUrl}}/reviews
 Content-Type: application/json
@@ -62,11 +48,11 @@ Content-Type: application/json
   "comment": "Simplemente increíble. La escena del trompo es legendaria."
 }
 
-### 7. Obtener la reseña (Con Enriquecimiento - Llama al Catálogo para traer Titulo y Genero)
-### NOTA: Reemplazar el ID de abajo con el ID devuelto al crear la reseña en el paso anterior
+### 3. Obtener la reseña creada (Con Enriquecimiento - Llama al Catálogo gRPC para traer Título y Género)
+# NOTA: Reemplaza el ID "r1" con el ID real devuelto por la creación en el paso anterior (ej. r_...)
 GET {{reviewsUrl}}/reviews/r1
 Accept: application/json
 
-### 8. Listar reseñas para la película ID 1
+### 4. Listar reseñas para la película con ID "1"
 GET {{reviewsUrl}}/reviews/movie/1
 Accept: application/json

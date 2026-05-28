@@ -1,44 +1,92 @@
-const express = require('express');
+const grpc = require('@grpc/grpc-js');
+const protoLoader = require('@grpc/proto-loader');
+const path = require('path');
 const db = require('./db');
 const crypto = require('crypto');
 
-const app = express();
-app.use(express.json());
-
-const PORT = process.env.PORT || 3001;
-
-// 1. GET /movies -> ListMovies
-app.get('/movies', async (req, res) => {
-  try {
-    const rows = await db.all('SELECT id, title, genre FROM movies');
-    res.status(200).json({ movies: rows });
-  } catch (err) {
-    console.error('Error al listar películas:', err.message);
-    res.status(500).json({ message: 'Internal Server Error' });
-  }
+// Cargar el archivo .proto
+const PROTO_PATH = path.join(__dirname, '../proto/movie-catalog.proto');
+const packageDefinition = protoLoader.loadSync(PROTO_PATH, {
+  keepCase: true,
+  longs: String,
+  enums: String,
+  defaults: true,
+  oneofs: true
 });
 
-// 2. GET /movies/:id -> GetMovie
-app.get('/movies/:id', async (req, res) => {
-  try {
-    const movie = await db.get('SELECT * FROM movies WHERE id = ?', [req.params.id]);
-    if (!movie) {
-      return res.status(404).json({ message: `NotFoundException: Movie with ID ${req.params.id} not found` });
-    }
-    res.status(200).json(movie);
-  } catch (err) {
-    console.error('Error al obtener película:', err.message);
-    res.status(500).json({ message: 'Internal Server Error' });
-  }
-});
+const movieProto = grpc.loadPackageDefinition(packageDefinition).moviecatalog;
 
-// 3. POST /movies -> CreateMovie
-app.post('/movies', async (req, res) => {
-  const { title, genre, director, releaseYear, synopsis } = req.body;
+// 1. RPC GetMovie
+const getMovie = async (call, callback) => {
+  const { id } = call.request;
+  console.log(`[gRPC Server] getMovie llamado con ID: ${id}`);
   
-  // Validación según contrato
+  if (!id) {
+    return callback({
+      code: grpc.status.INVALID_ARGUMENT,
+      details: 'ID de película es requerido.'
+    });
+  }
+
+  try {
+    const movie = await db.get('SELECT * FROM movies WHERE id = ?', [id]);
+    if (!movie) {
+      return callback({
+        code: grpc.status.NOT_FOUND,
+        details: `Movie with ID ${id} not found`
+      });
+    }
+    
+    callback(null, { movie: {
+      id: movie.id,
+      title: movie.title,
+      genre: movie.genre,
+      director: movie.director,
+      releaseYear: movie.releaseYear,
+      synopsis: movie.synopsis || ''
+    }});
+  } catch (err) {
+    console.error('Error en getMovie:', err.message);
+    callback({
+      code: grpc.status.INTERNAL,
+      details: 'Error interno de la base de datos.'
+    });
+  }
+};
+
+// 2. RPC ListMovies
+const listMovies = async (call, callback) => {
+  console.log('[gRPC Server] listMovies llamado');
+  try {
+    const rows = await db.all('SELECT * FROM movies');
+    const movies = rows.map(movie => ({
+      id: movie.id,
+      title: movie.title,
+      genre: movie.genre,
+      director: movie.director,
+      releaseYear: movie.releaseYear,
+      synopsis: movie.synopsis || ''
+    }));
+    callback(null, { movies });
+  } catch (err) {
+    console.error('Error en listMovies:', err.message);
+    callback({
+      code: grpc.status.INTERNAL,
+      details: 'Error interno de la base de datos.'
+    });
+  }
+};
+
+// 3. RPC CreateMovie
+const createMovie = async (call, callback) => {
+  const { title, genre, director, releaseYear, synopsis } = call.request;
+  console.log(`[gRPC Server] createMovie llamado para título: ${title}`);
+
   if (!title || !genre || !director || releaseYear === undefined) {
-    return res.status(400).json({ message: 'ValidationException: title, genre, director, and releaseYear are required fields.' });
+    return callback({
+      code: grpc.status.INVALID_ARGUMENT,
+      details: 'title, genre, director, y releaseYear son requeridos.'
+    });
   }
 
   try {
@@ -47,58 +95,115 @@ app.post('/movies', async (req, res) => {
       'INSERT INTO movies (id, title, genre, director, releaseYear, synopsis) VALUES (?, ?, ?, ?, ?, ?)',
       [id, title, genre, director, releaseYear, synopsis || '']
     );
-    res.status(201).json({ id, title, genre, director, releaseYear, synopsis: synopsis || '' });
+
+    callback(null, { movie: {
+      id,
+      title,
+      genre,
+      director,
+      releaseYear,
+      synopsis: synopsis || ''
+    }});
   } catch (err) {
-    console.error('Error al crear película:', err.message);
-    res.status(500).json({ message: 'Internal Server Error' });
+    console.error('Error en createMovie:', err.message);
+    callback({
+      code: grpc.status.INTERNAL,
+      details: 'Error al insertar película en la base de datos.'
+    });
   }
-});
+};
 
-// 4. PUT /movies/:id -> UpdateMovie
-app.put('/movies/:id', async (req, res) => {
-  const { id: routeId } = req.params;
-  const { title, genre, director, releaseYear, synopsis } = req.body;
+// 4. RPC UpdateMovie
+const updateMovie = async (call, callback) => {
+  const { id, title, genre, director, releaseYear, synopsis } = call.request;
+  console.log(`[gRPC Server] updateMovie llamado para ID: ${id}`);
 
-  // Validación
-  if (!title || !genre || !director || releaseYear === undefined) {
-    return res.status(400).json({ message: 'ValidationException: title, genre, director, and releaseYear are required fields.' });
+  if (!id || !title || !genre || !director || releaseYear === undefined) {
+    return callback({
+      code: grpc.status.INVALID_ARGUMENT,
+      details: 'id, title, genre, director, y releaseYear son requeridos.'
+    });
   }
 
   try {
-    const existing = await db.get('SELECT id FROM movies WHERE id = ?', [routeId]);
+    const existing = await db.get('SELECT id FROM movies WHERE id = ?', [id]);
     if (!existing) {
-      return res.status(404).json({ message: `NotFoundException: Movie with ID ${routeId} not found` });
+      return callback({
+        code: grpc.status.NOT_FOUND,
+        details: `Movie with ID ${id} not found`
+      });
     }
 
     await db.run(
       'UPDATE movies SET title = ?, genre = ?, director = ?, releaseYear = ?, synopsis = ? WHERE id = ?',
-      [title, genre, director, releaseYear, synopsis || '', routeId]
+      [title, genre, director, releaseYear, synopsis || '', id]
     );
 
-    res.status(200).json({ id: routeId, title, genre, director, releaseYear, synopsis: synopsis || '' });
+    callback(null, { movie: {
+      id,
+      title,
+      genre,
+      director,
+      releaseYear,
+      synopsis: synopsis || ''
+    }});
   } catch (err) {
-    console.error('Error al actualizar película:', err.message);
-    res.status(500).json({ message: 'Internal Server Error' });
+    console.error('Error en updateMovie:', err.message);
+    callback({
+      code: grpc.status.INTERNAL,
+      details: 'Error al actualizar película en la base de datos.'
+    });
   }
-});
+};
 
-// 5. DELETE /movies/:id -> DeleteMovie
-app.delete('/movies/:id', async (req, res) => {
-  const { id } = req.params;
+// 5. RPC DeleteMovie
+const deleteMovie = async (call, callback) => {
+  const { id } = call.request;
+  console.log(`[gRPC Server] deleteMovie llamado para ID: ${id}`);
+
+  if (!id) {
+    return callback({
+      code: grpc.status.INVALID_ARGUMENT,
+      details: 'ID de película es requerido.'
+    });
+  }
+
   try {
     const existing = await db.get('SELECT id FROM movies WHERE id = ?', [id]);
     if (!existing) {
-      return res.status(404).json({ message: `NotFoundException: Movie with ID ${id} not found` });
+      return callback({
+        code: grpc.status.NOT_FOUND,
+        details: `Movie with ID ${id} not found`
+      });
     }
 
     await db.run('DELETE FROM movies WHERE id = ?', [id]);
-    res.status(204).send(); // 204 No Content
+    callback(null, { success: true });
   } catch (err) {
-    console.error('Error al eliminar película:', err.message);
-    res.status(500).json({ message: 'Internal Server Error' });
+    console.error('Error en deleteMovie:', err.message);
+    callback({
+      code: grpc.status.INTERNAL,
+      details: 'Error al eliminar película en la base de datos.'
+    });
   }
+};
+
+// Inicializar y levantar el servidor gRPC
+const server = new grpc.Server();
+server.addService(movieProto.MovieCatalogService.service, {
+  getMovie,
+  listMovies,
+  createMovie,
+  updateMovie,
+  deleteMovie
 });
 
-app.listen(PORT, () => {
-  console.log(`Movie Catalog Service (Servicio A) corriendo en puerto ${PORT}`);
+const PORT = process.env.GRPC_PORT || '50051';
+server.bindAsync(`0.0.0.0:${PORT}`, grpc.ServerCredentials.createInsecure(), (err, port) => {
+  if (err) {
+    console.error('Error al iniciar el servidor gRPC:', err);
+    return;
+  }
+  console.log(`Movie Catalog gRPC Service (Servicio Backend) corriendo en el puerto ${port}`);
+  server.start();
 });

@@ -1,15 +1,15 @@
 const express = require('express');
 const db = require('./db');
 const crypto = require('crypto');
-const axios = require('axios');
+const grpc = require('@grpc/grpc-js');
+const grpcClient = require('./grpc-client');
 
 const app = express();
 app.use(express.json());
 
 const PORT = process.env.PORT || 3002;
-const CATALOG_URL = process.env.MOVIE_CATALOG_SERVICE_URL || 'http://localhost:3001';
 
-// 1. POST /reviews -> CreateReview (con validación inter-servicio mediante REST directo con Axios)
+// 1. POST /reviews -> CreateReview (con validación inter-servicio mediante Cliente gRPC)
 app.post('/reviews', async (req, res) => {
   const { movieId, author, rating, comment } = req.body;
 
@@ -23,19 +23,20 @@ app.post('/reviews', async (req, res) => {
   }
 
   try {
-    // COMUNICACIÓN ENTRE MICROSERVICIOS: REST puro por HTTP usando Axios
-    console.log(`[Servicio B] Validando existencia de película ID: ${movieId} vía REST directo...`);
+    // COMUNICACIÓN INTER-SERVICIO: gRPC con Cliente Nativo
+    console.log(`[Servicio B] Validando existencia de película ID: ${movieId} vía gRPC...`);
     try {
-      await axios.get(`${CATALOG_URL}/movies/${movieId}`);
-      console.log(`[Servicio B] Película ID: ${movieId} validada con éxito.`);
+      await grpcClient.getMovie(movieId);
+      console.log(`[Servicio B] Película ID: ${movieId} validada con éxito vía gRPC.`);
     } catch (err) {
-      if (err.response && err.response.status === 404) {
+      if (err.code === grpc.status.NOT_FOUND) {
         return res.status(400).json({ 
           message: `MovieNotFoundException: La película con ID ${movieId} no existe en el catálogo. Reseña rechazada.` 
         });
       }
-      // Re-lanzar errores de red o servidor general
-      throw err;
+      // Re-lanzar si es otro tipo de error de gRPC (como UNAVAILABLE)
+      console.error('Error de red/gRPC en validación:', err.message);
+      return res.status(500).json({ message: 'Catalog service currently unavailable.' });
     }
 
     // Insertar reseña en la DB SQLite local de reseñas
@@ -60,7 +61,7 @@ app.post('/reviews', async (req, res) => {
   }
 });
 
-// 2. GET /reviews/:id -> GetReview (con Enriquecimiento inter-servicio vía REST directo con Axios)
+// 2. GET /reviews/:id -> GetReview (con Enriquecimiento inter-servicio vía Cliente gRPC)
 app.get('/reviews/:id', async (req, res) => {
   const { id } = req.params;
   try {
@@ -69,17 +70,17 @@ app.get('/reviews/:id', async (req, res) => {
       return res.status(404).json({ message: `NotFoundException: Reseña con ID ${id} no encontrada.` });
     }
 
-    // COMUNICACIÓN ENTRE MICROSERVICIOS: REST puro por HTTP usando Axios para enriquecer la respuesta
+    // COMUNICACIÓN INTER-SERVICIO: gRPC para enriquecer la respuesta
     let movieTitle = 'Desconocido';
     let movieGenre = 'Desconocido';
     
     try {
-      console.log(`[Servicio B] Consultando catálogo REST para película ID: ${review.movieId}...`);
-      const movieResponse = await axios.get(`${CATALOG_URL}/movies/${review.movieId}`);
-      movieTitle = movieResponse.data.title;
-      movieGenre = movieResponse.data.genre;
+      console.log(`[Servicio B] Consultando catálogo gRPC para película ID: ${review.movieId}...`);
+      const movie = await grpcClient.getMovie(review.movieId);
+      movieTitle = movie.title;
+      movieGenre = movie.genre;
     } catch (err) {
-      console.warn(`[Servicio B] No se pudo obtener detalles de la película ID: ${review.movieId} para enriquecer. Continuado con valores por defecto.`);
+      console.warn(`[Servicio B] No se pudo obtener detalles gRPC de la película ID: ${review.movieId} para enriquecer. Motivo: ${err.message}`);
     }
 
     res.status(200).json({
@@ -128,6 +129,5 @@ app.delete('/reviews/:id', async (req, res) => {
 });
 
 app.listen(PORT, () => {
-  console.log(`Movie Review Service (Servicio B) corriendo en puerto ${PORT}`);
-  console.log(`Conectado al Servicio de Catálogo en: ${CATALOG_URL}`);
+  console.log(`Movie Review Service (Servicio Frontend REST) corriendo en puerto ${PORT}`);
 });

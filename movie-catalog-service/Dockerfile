@@ -11,6 +11,6 @@ RUN npm install
 
 COPY movie-catalog-service/ .
 
-EXPOSE 3001
+EXPOSE 50051
 
 CMD ["npm", "start"]
