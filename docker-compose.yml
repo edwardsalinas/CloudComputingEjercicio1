@@ -1,0 +1,37 @@
+version: '3.8'
+
+services:
+  movie-catalog-service:
+    build:
+      context: .
+      dockerfile: movie-catalog-service/Dockerfile
+    container_name: movie-catalog-service
+    ports:
+      - "3001:3001"
+    environment:
+      - PORT=3001
+    volumes:
+      - ./movie-catalog-service/data:/app/data
+    networks:
+      - movie-network
+
+  movie-review-service:
+    build:
+      context: .
+      dockerfile: movie-review-service/Dockerfile
+    container_name: movie-review-service
+    ports:
+      - "3002:3002"
+    environment:
+      - PORT=3002
+      - MOVIE_CATALOG_SERVICE_URL=http://movie-catalog-service:3001
+    depends_on:
+      - movie-catalog-service
+    volumes:
+      - ./movie-review-service/data:/app/data
+    networks:
+      - movie-network
+
+networks:
+  movie-network:
+    driver: bridge

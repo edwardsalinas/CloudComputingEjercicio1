@@ -1,0 +1,13 @@
+{
+  "name": "movie-catalog-service",
+  "version": "1.0.0",
+  "description": "Servicio A - Catálogo de Películas",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "sqlite3": "^5.1.7"
+  }
+}

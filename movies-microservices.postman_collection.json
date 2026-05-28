@@ -1,0 +1,298 @@
+{
+	"info": {
+		"_postman_id": "bbccb08c-1889-40ee-88df-70d81e280945",
+		"name": "Películas y Reseñas - Smithy Microservicios",
+		"description": "Colección para probar los dos microservicios REST (Catálogo de Películas y Reseñas de Películas) que se comunican mediante el SDK autogenerado de Smithy.",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "Servicio A: Catálogo de Películas (Puerto 3001)",
+			"item": [
+				{
+					"name": "Listar Películas",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{catalog_url}}/movies",
+							"host": [
+								"{{catalog_url}}"
+							],
+							"path": [
+								"movies"
+							]
+						},
+						"description": "Obtiene el listado resumido de todas las películas sembradas en SQLite (movies.db)."
+					},
+					"response": []
+				},
+				{
+					"name": "Obtener Película por ID (Inception)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{catalog_url}}/movies/1",
+							"host": [
+								"{{catalog_url}}"
+							],
+							"path": [
+								"movies",
+								"1"
+							]
+						},
+						"description": "Obtiene los detalles completos de la película con ID '1' (Inception)."
+					},
+					"response": []
+				},
+				{
+					"name": "Obtener Película Inexistente (Error 404)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{catalog_url}}/movies/inexistente-123",
+							"host": [
+								"{{catalog_url}}"
+							],
+							"path": [
+								"movies",
+								"inexistente-123"
+							]
+						},
+						"description": "Verifica que el catálogo responda con un error 404 (NotFoundException) ante un ID inexistente."
+					},
+					"response": []
+				},
+				{
+					"name": "Crear Nueva Película",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"title\": \"Interstellar 2\",\n  \"genre\": \"Sci-Fi\",\n  \"director\": \"Christopher Nolan\",\n  \"releaseYear\": 2026,\n  \"synopsis\": \"The journey continues beyond the wormhole.\"\n}"
+						},
+						"url": {
+							"raw": "{{catalog_url}}/movies",
+							"host": [
+								"{{catalog_url}}"
+							],
+							"path": [
+								"movies"
+							]
+						},
+						"description": "Crea una nueva película en el catálogo SQLite."
+					},
+					"response": []
+				},
+				{
+					"name": "Actualizar Película (Inception)",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"title\": \"Inception (Director's Cut)\",\n  \"genre\": \"Sci-Fi / Thriller\",\n  \"director\": \"Christopher Nolan\",\n  \"releaseYear\": 2010,\n  \"synopsis\": \"Extended mind-bending masterpiece.\"\n}"
+						},
+						"url": {
+							"raw": "{{catalog_url}}/movies/1",
+							"host": [
+								"{{catalog_url}}"
+							],
+							"path": [
+								"movies",
+								"1"
+							]
+						},
+						"description": "Actualiza la película con ID '1' en el catálogo."
+					},
+					"response": []
+				},
+				{
+					"name": "Eliminar Película por ID",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{catalog_url}}/movies/3",
+							"host": [
+								"{{catalog_url}}"
+							],
+							"path": [
+								"movies",
+								"3"
+							]
+						},
+						"description": "Elimina la película con ID '3' (Interstellar)."
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Servicio B: Reseñas y Comunicación Inter-Servicios (Puerto 3002)",
+			"item": [
+				{
+					"name": "Crear Reseña Película INEXISTENTE (Debe Fallar - 400)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"movieId\": \"inexistente-123\",\n  \"author\": \"Crítico Exigente\",\n  \"rating\": 4,\n  \"comment\": \"Esta reseña no debe poder guardarse porque el catálogo rechazará la validación.\"\n}"
+						},
+						"url": {
+							"raw": "{{reviews_url}}/reviews",
+							"host": [
+								"{{reviews_url}}"
+							],
+							"path": [
+								"reviews"
+							]
+						},
+						"description": "Verifica la validación inter-servicio: el servicio de reseñas consulta al catálogo usando Smithy, detecta que la película no existe y bloquea la creación con un error 400."
+					},
+					"response": []
+				},
+				{
+					"name": "Crear Reseña Película EXISTENTE (Succeed - 201)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"movieId\": \"1\",\n  \"author\": \"Cinefilo_2026\",\n  \"rating\": 5,\n  \"comment\": \"Absolutamente brillante, mi favorita por siempre.\"\n}"
+						},
+						"url": {
+							"raw": "{{reviews_url}}/reviews",
+							"host": [
+								"{{reviews_url}}"
+							],
+							"path": [
+								"reviews"
+							]
+						},
+						"description": "Verifica que al existir el ID '1' en el catálogo, la validación sea exitosa y la reseña se guarde correctamente en reviews.db."
+					},
+					"response": []
+				},
+				{
+					"name": "Obtener Reseña por ID (Con Enriquecimiento de Catálogo)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{reviews_url}}/reviews/r1",
+							"host": [
+								"{{reviews_url}}"
+							],
+							"path": [
+								"reviews",
+								"r1"
+							]
+						},
+						"description": "Demuestra la agregación en caliente: el Servicio B lee la reseña con ID 'r1', consulta al catálogo el título y género de la película mediante el SDK de Smithy, y une los datos en una única respuesta unificada."
+					},
+					"response": []
+				},
+				{
+					"name": "Listar Reseñas de una Película (Inception)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{reviews_url}}/reviews/movie/1",
+							"host": [
+								"{{reviews_url}}"
+							],
+							"path": [
+								"reviews",
+								"movie",
+								"1"
+							]
+						},
+						"description": "Obtiene todas las valoraciones asociadas al ID de película '1'."
+					},
+					"response": []
+				},
+				{
+					"name": "Eliminar Reseña",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{reviews_url}}/reviews/r3",
+							"host": [
+								"{{reviews_url}}"
+							],
+							"path": [
+								"reviews",
+								"r3"
+							]
+						},
+						"description": "Elimina la reseña con ID 'r3' de la base de datos de reseñas."
+					},
+					"response": []
+				}
+			]
+		}
+	],
+	"event": [
+		{
+			"listen": "prerequest",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		},
+		{
+			"listen": "test",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		}
+	],
+	"variable": [
+		{
+			"key": "catalog_url",
+			"value": "http://localhost:3001",
+			"type": "string"
+		},
+		{
+			"key": "reviews_url",
+			"value": "http://localhost:3002",
+			"type": "string"
+		}
+	]
+}

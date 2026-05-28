@@ -1,0 +1,6 @@
+node_modules
+reviews.db
+*.db
+npm-debug.log
+Dockerfile
+.dockerignore
